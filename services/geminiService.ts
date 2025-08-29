@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 import type { GenerateContentResponse } from "@google/genai";
 
 const API_KEY = process.env.API_KEY;
@@ -22,11 +22,7 @@ const ai = new GoogleGenAI({ apiKey: API_KEY });
  * @returns The fallback prompt string.
  */
 function getFallbackPrompt(scene: string): string {
-    return `Buat gambar FOTO yang SANGAT REALISTIS. DILARANG membuat ilustrasi atau kartun.
-- Ambil orang dari gambar pertama.
-- Terapkan gaya atau pakaian dari gambar kedua.
-- Tempatkan mereka di latar ini: "${scene}".
-- SANGAT PENTING: Wajah orang dari gambar pertama TIDAK BOLEH BERUBAH. Harus sama persis. Pastikan pencahayaan pada orang tersebut cocok dengan pencahayaan di latar.`;
+    return `FOTO REALISTIS: Orang dari Gambar 1, memakai pakaian dari Gambar 2, di lokasi "${scene}". Jaga wajah tetap sama. Buat terlihat nyata.`;
 }
 
 /**
@@ -49,17 +45,19 @@ function parseImageDataUrl(imageDataUrl: string): { mimeType: string; base64Data
  * @returns A data URL string for the generated image.
  */
 function processGeminiResponse(response: GenerateContentResponse): string {
-    const imagePartFromResponse = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-
-    if (imagePartFromResponse?.inlineData) {
-        const { mimeType, data } = imagePartFromResponse.inlineData;
-        return `data:${mimeType};base64,${data}`;
+    // The API can return multiple parts, find the first one that is an image.
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+            const { mimeType, data } = part.inlineData;
+            return `data:${mimeType};base64,${data}`;
+        }
     }
 
     const textResponse = response.text;
     console.error("API tidak mengembalikan gambar. Respons:", textResponse);
     throw new Error(`Model AI merespons dengan teks, bukan gambar: "${textResponse || 'Tidak ada respons teks.'}"`);
 }
+
 
 /**
  * A wrapper for the Gemini API call that includes a retry mechanism for internal server errors.
@@ -76,6 +74,9 @@ async function callGeminiWithRetry(imageParts: object[], textPart: object): Prom
             return await ai.models.generateContent({
                 model: 'gemini-2.5-flash-image-preview',
                 contents: { parts: [...imageParts, textPart] },
+                config: {
+                    responseModalities: [Modality.IMAGE, Modality.TEXT],
+                },
             });
         } catch (error) {
             console.error(`Error memanggil Gemini API (Percobaan ${attempt}/${maxRetries}):`, error);
@@ -116,34 +117,12 @@ export async function generateSceneImage(personImageDataUrl: string, clothingIma
     };
     const imageParts = [personImagePart, clothingImagePart];
     
-    const prompt = `Anda adalah seorang Ahli Photoshop Digital yang sangat terampil, bertugas untuk melakukan compositing gambar fotorealistik untuk proyek IMAJINASILOKAL. Tugas Anda adalah menggabungkan tiga elemen (Model, Referensi, Latar) menjadi satu gambar tunggal yang SEPENUHNYA REALISTIS dan tidak dapat dibedakan dari foto asli.
-
-**ATURAN GAYA (TIDAK BISA DITAWAR):**
-1.  **IDENTITAS WAJAH 100%**: Wajah subjek di gambar hasil HARUS SAMA PERSIS dengan wajah di Gambar Sumber 1 (Model). Duplikasi setiap fitur, warna kulit, dan ekspresi. JANGAN mengubah wajah sama sekali. Ini adalah prioritas tertinggi.
-2.  **FOTOREALISME MUTLAK**: Output HARUS berupa FOTO. DILARANG KERAS menghasilkan ilustrasi, lukisan, kartun, anime, atau render 3D. Bahkan jika latarnya imajinatif, render pemandangannya seolah-olah itu adalah lokasi fisik nyata yang difoto dengan kamera profesional.
-
----
-**PROSES KERJA ANDA (LANGKAH-DEMI-LANGKAH):**
-
-**Gambar Sumber 1 (MODEL):** Ini adalah subjek utama.
-- Ekstrak subjek, dengan fokus utama pada wajah dan identitas mereka.
-
-**Gambar Sumber 2 (REFERENSI):** Ini adalah sumber inspirasi.
-- Analisis elemen kunci dari gambar ini. Apakah itu pakaian? Objek? Gaya pencahayaan? Palet warna?
-
-**Latar yang Diminta:** "${scene}"
-
-**Instruksi Komposisi:**
-1.  **Mulai dengan Subjek:** Ambil subjek dari Gambar 1.
-2.  **Terapkan Referensi:** Secara cerdas, kenakan pakaian dari Gambar 2 pada subjek, atau tempatkan objek dari Gambar 2 bersama mereka, atau terapkan gaya pencahayaan dari Gambar 2 pada seluruh komposisi. Pastikan pakaian pas secara alami, dengan lipatan dan bayangan yang realistis.
-3.  **Tempatkan di Latar:** Letakkan subjek yang sudah dimodifikasi ke dalam latar "${scene}".
-4.  **INTEGRASI SEMPURNA (Paling Penting):**
-    - **Pencahayaan & Bayangan:** Pencahayaan pada subjek HARUS konsisten dengan sumber cahaya di latar. Jika latar belakang cerah, bayangannya harus tajam. Jika latarnya adalah ruangan remang-remang, cahayanya harus lembut dan menyebar. Ini adalah kunci untuk menghindari efek "tempelan".
-    - **Skala & Perspektif:** Pastikan ukuran subjek masuk akal untuk latar tersebut.
-    - **Fokus & Kedalaman Bidang:** Terapkan efek depth-of-field yang halus jika sesuai, agar subjek menonjol secara alami dari latar.
-    - **Tekstur:** Pastikan semua tekstur (kain, kulit, permukaan di latar) terlihat nyata dan tajam.
-
-Hasilkan satu gambar akhir yang koheren, berkualitas tinggi, dan sepenuhnya fotorealistik.`;
+    const prompt = `FOTO REALISTIS: Gabungkan Gambar 1 (orang) dan Gambar 2 (pakaian) ke dalam latar "${scene}".
+Prioritas Utama:
+1.  **Wajah & Identitas**: Salin wajah dari Gambar 1 secara PERSIS. Jangan diubah.
+2.  **Pakaian**: Terapkan pakaian dari Gambar 2 ke orang tersebut. Perhatikan detail seperti warna, pola, dan potongan.
+3.  **Integrasi**: Pastikan pencahayaan dan bayangan pada orang dan pakaian menyatu dengan latar belakang secara alami.
+Hasil akhir harus berupa satu gambar saja, tanpa teks.`;
 
     // --- First attempt with the original prompt ---
     try {

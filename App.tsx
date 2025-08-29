@@ -10,6 +10,7 @@ import { createAlbumPage } from './lib/albumUtils';
 import Footer from './components/Footer';
 
 const DAILY_LIFE_SCENES = [
+    // Daily & Urban
     'di dalam kamar tidur yang nyaman dengan cahaya pagi',
     'bekerja di meja kantor yang modern dan rapi',
     'duduk santai di sofa ruang keluarga yang hangat',
@@ -21,8 +22,41 @@ const DAILY_LIFE_SCENES = [
     'bersantai di atas kasur dengan selimut tebal',
     'menikmati kopi di teras rumah',
     'di dalam mobil saat perjalanan',
-    'berbelanja di supermarket yang ramai'
+    'berbelanja di supermarket yang ramai',
+    'di jalanan kota Tokyo saat malam hari dengan lampu neon',
+    'di atap gedung pencakar langit saat senja',
+    'menunggu kereta di stasiun bawah tanah yang ramai',
+    'di dalam sebuah galeri seni modern',
+    
+    // Nature & Travel
+    'di tengah hutan pinus yang berkabut',
+    'di tepi pantai dengan pasir putih dan air jernih',
+    'mendaki gunung dengan pemandangan lembah di bawahnya',
+    'di bawah air terjun yang deras',
+    'berkemah di bawah langit malam penuh bintang',
+    'duduk di tepi danau yang tenang saat matahari terbenam',
+    'di sebuah desa tradisional di pedalaman Bali',
+    'menjelajahi pasar malam yang ramai di Bangkok',
+
+    // Fantasy & Sci-Fi
+    'di sebuah kastil melayang di angkasa',
+    'menunggang naga di atas pegunungan vulkanik',
+    'di taman ajaib dengan bunga-bunga yang bercahaya',
+    'berdiri di depan gerbang kota elf yang megah',
+    'di dalam kokpit pesawat ruang angkasa',
+    'berjalan di kota futuristik dengan mobil terbang',
+    'di stasiun luar angkasa yang menghadap ke planet Bumi',
+    'menemukan reruntuhan kuno di planet Mars',
+
+    // Historical & Action
+    'di pasar rempah-rempah era kolonial',
+    'di sebuah pesta dansa bangsawan abad ke-18',
+    'menjadi ksatria di depan sebuah benteng kuno',
+    'sebagai mata-mata di era perang dingin',
+    'balapan mobil sport di sirkuit Monaco',
+    'melompat dari satu gedung ke gedung lain seperti parkour',
 ];
+
 
 const GHOST_POLAROIDS_CONFIG = [
   { initial: { x: "-150%", y: "0%", rotate: -30 }, transition: { delay: 0.2 } },
@@ -61,7 +95,7 @@ function App() {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isDownloading, setIsDownloading] = useState<boolean>(false);
     const [appState, setAppState] = useState<'idle' | 'image-uploaded' | 'generating' | 'results-shown'>('idle');
-    const [customScene, setCustomScene] = useState<string>('');
+    const [customScenes, setCustomScenes] = useState<string[]>(['']);
     const [scenesToGenerate, setScenesToGenerate] = useState<string[]>([]);
     const isMobile = useMediaQuery('(max-width: 768px)');
 
@@ -92,7 +126,7 @@ function App() {
     const handleGenerateClick = async () => {
         if (!personImage || !clothingImage) return;
 
-        // --- NEW DYNAMIC SCENE LOGIC ---
+        // --- DYNAMIC SCENE LOGIC ---
         const shuffleArray = (array: string[]) => {
             const newArr = [...array];
             for (let i = newArr.length - 1; i > 0; i--) {
@@ -102,25 +136,20 @@ function App() {
             return newArr;
         };
 
-        const finalScenes: string[] = [];
-        const remainingScenesPool = [...DAILY_LIFE_SCENES];
-
-        if (customScene.trim() !== '') {
-            const userScene = customScene.trim();
-            finalScenes.push(userScene);
-            
-            const indexInPool = remainingScenesPool.indexOf(userScene);
-            if (indexInPool > -1) {
-                remainingScenesPool.splice(indexInPool, 1);
-            }
-        }
+        const userScenes = customScenes.map(s => s.trim()).filter(Boolean);
+        const finalScenes: string[] = [...new Set(userScenes)]; // Use Set to remove duplicate user inputs
+        
+        const remainingScenesPool = DAILY_LIFE_SCENES.filter(scene => !finalScenes.includes(scene));
 
         const shuffledPool = shuffleArray(remainingScenesPool);
         const scenesNeeded = 6 - finalScenes.length;
-        finalScenes.push(...shuffledPool.slice(0, scenesNeeded));
+        
+        if (scenesNeeded > 0) {
+            finalScenes.push(...shuffledPool.slice(0, scenesNeeded));
+        }
         
         setScenesToGenerate(finalScenes);
-        // --- END NEW LOGIC ---
+        // --- END LOGIC ---
 
         setIsLoading(true);
         setAppState('generating');
@@ -201,7 +230,7 @@ function App() {
         setClothingImage(null);
         setGeneratedImages({});
         setAppState('idle');
-        setCustomScene('');
+        setCustomScenes(['']);
         setScenesToGenerate([]);
     };
 
@@ -252,6 +281,24 @@ function App() {
             alert("Maaf, terjadi kesalahan saat membuat album Anda. Silakan coba lagi.");
         } finally {
             setIsDownloading(false);
+        }
+    };
+
+    const handleCustomSceneChange = (index: number, value: string) => {
+        const newScenes = [...customScenes];
+        newScenes[index] = value;
+        setCustomScenes(newScenes);
+    };
+
+    const addCustomScene = () => {
+        if (customScenes.length < 3) {
+            setCustomScenes(prev => [...prev, '']);
+        }
+    };
+
+    const removeCustomScene = (index: number) => {
+        if (customScenes.length > 1) {
+            setCustomScenes(prev => prev.filter((_, i) => i !== index));
         }
     };
 
@@ -331,30 +378,40 @@ function App() {
                          </div>
 
                          <div className="w-full max-w-lg mt-4 flex flex-col items-center gap-4 text-center">
-                            <label htmlFor="custom-scene" className="font-kalam text-2xl text-neutral-300">
-                                Tuliskan imajinasimu di sini...
+                            <label className="font-kalam text-2xl text-neutral-300">
+                                Tuliskan imajinasimu di sini... (hingga 3)
                             </label>
-                            <div className="relative w-full">
-                                <input
-                                    id="custom-scene"
-                                    type="text"
-                                    value={customScene}
-                                    onChange={(e) => setCustomScene(e.target.value)}
-                                    placeholder="misal: di puncak gunung saat matahari terbit"
-                                    className="w-full bg-neutral-900 border-2 border-neutral-700 rounded-sm py-3 px-4 text-neutral-100 font-sans focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
-                                />
-                                {customScene && (
-                                     <button 
-                                        onClick={() => setCustomScene('')} 
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"
-                                        aria-label="Clear input"
-                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                )}
+                            <div className="w-full flex flex-col gap-3">
+                                {customScenes.map((scene, index) => (
+                                    <div key={index} className="relative w-full flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={scene}
+                                            onChange={(e) => handleCustomSceneChange(index, e.target.value)}
+                                            placeholder={`misal: di puncak gunung (${index + 1})`}
+                                            className="w-full bg-neutral-900 border-2 border-neutral-700 rounded-sm py-3 px-4 pr-10 text-neutral-100 font-sans focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                                        />
+                                        {customScenes.length > 1 && (
+                                            <button 
+                                                onClick={() => removeCustomScene(index)} 
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"
+                                                aria-label={`Hapus latar ${index + 1}`}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
-                             <p className="font-sans text-xs text-neutral-500">
-                                Latar lain akan dipilihkan secara acak dari tema sehari-hari.
+                            
+                            {customScenes.length < 3 && (
+                                <button onClick={addCustomScene} className="font-kalam text-orange-400 hover:text-orange-300 transition-colors text-lg mt-1">
+                                    + Tambah Latar Lain
+                                </button>
+                            )}
+
+                             <p className="font-sans text-xs text-neutral-500 mt-2">
+                                Latar yang kosong atau tidak diisi akan dipilihkan secara acak.
                             </p>
                          </div>
                          
@@ -385,7 +442,7 @@ function App() {
                                         status={generatedImages[scene]?.status || 'pending'}
                                         imageUrl={generatedImages[scene]?.url}
                                         error={generatedImages[scene]?.error}
-                                        onShake={handleRegenerateScene}
+                                        onRetry={handleRegenerateScene}
                                         onDownload={handleDownloadIndividualImage}
                                         isMobile={isMobile}
                                     />
